@@ -22,7 +22,7 @@ class AuthService {
 class AttendanceService {
   AttendanceService(this.jwt);
   final String jwt;
-
+  
   Map<String,String> get _h => {'Content-Type':'application/json','X-Appwrite-User-JWT':jwt};
   Uri _u(String p,[Map<String,String>? q]) => Uri.parse('${AppConfig.attendanceFunctionBase}$p')
       .replace(queryParameters: q);

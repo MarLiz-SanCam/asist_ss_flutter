@@ -3,8 +3,8 @@
 
 
 class AppConfig {
-  static const endpoint = '';   
-  static const projectId = '';
+  static const endpoint = 'https://fra.cloud.appwrite.io/v1';   
+  static const projectId = '68a3aae00016c8478e66';
   static const attendanceFunctionBase =
       '';
 }

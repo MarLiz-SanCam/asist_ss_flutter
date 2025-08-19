@@ -12,6 +12,7 @@ class _S extends State<LoginPage>{
     try{
       final auth=AuthService(); await auth.login(_email.text.trim(), _pass.text);
       final jwt=await auth.jwt();
+      print('🔑 Mi JWT: $jwt');
       if(!mounted) return;
       Navigator.pushReplacement(context, MaterialPageRoute(builder:(_)=>HomePage(jwt: jwt)));
     } catch(e){ ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString()))); }

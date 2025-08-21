@@ -1,46 +1,80 @@
-/// Para el servicio de autenticación (login y contraseña)
-/// AttendanceService(jwt) con métodos status() checkIn() y Checkout()
+/// Servicios: autenticación con sesión y ejecución de Function de asistencia
+library;
 
 import 'dart:convert';
 import 'package:appwrite/appwrite.dart';
-import 'package:http/http.dart' as http;
 import 'config.dart';
 import 'models.dart';
 
 class AuthService {
-  final _client = Client()..setEndpoint(AppConfig.endpoint)..setProject(AppConfig.projectId);
+  final _client = Client()
+    ..setEndpoint(AppConfig.endpoint)
+    ..setProject(AppConfig.projectId);
+
   late final Account _account = Account(_client);
 
-  Future<void> login(String email, String pass) async {
-    try { await _account.deleteSession(sessionId: 'current'); } catch (_) {}
+  /// Crea sesión de email/contraseña y devuelve un JWT (opcional para tu UI).
+  Future<String> login(String email, String pass) async {
+    try {
+      await _account.deleteSession(sessionId: 'current');
+    } catch (_) {
+      // ignorar si no había sesión
+    }
     await _account.createEmailPasswordSession(email: email, password: pass);
+    final jwt = await _account.createJWT();
+    return jwt.jwt; // lo usas para navegar como ya tienes en LoginPage
   }
 
-  Future<String> jwt() async => (await _account.createJWT()).jwt;
+  Future<void> logout() async {
+    try {
+      await _account.deleteSession(sessionId: 'current');
+    } catch (_) {}
+  }
 }
 
 class AttendanceService {
+  final String jwt; // no se usa para la Function, pero mantenemos firma
   AttendanceService(this.jwt);
-  final String jwt;
-  
-  Map<String,String> get _h => {'Content-Type':'application/json','X-Appwrite-User-JWT':jwt};
-  Uri _u(String p,[Map<String,String>? q]) => Uri.parse('${AppConfig.attendanceFunctionBase}$p')
-      .replace(queryParameters: q);
 
+  final _client = Client()
+    ..setEndpoint(AppConfig.endpoint)
+    ..setProject(AppConfig.projectId);
+
+  late final Functions _functions = Functions(_client);
+
+  Future<Map<String, dynamic>> _exec(Map<String, dynamic> body) async {
+    // IMPORTANTE: la sesión del usuario debe existir (createEmailSession previo).
+    final ex = await _functions.createExecution(
+      functionId: AppConfig.functionId,
+      body: jsonEncode(body),
+    );
+    // En el SDK de Dart, la respuesta JSON de tu Function viene en `ex.response`
+    final txt = ex.responseBody;// string
+    final Map<String, dynamic> json = jsonDecode(txt);
+    if (json['success'] == true) return json;
+    throw Exception(json['error'] ?? 'Error');
+  }
+
+  /// Estado del día (cuántos bloques, abiertos, etc.)
   Future<DayStatus> status() async {
-    final r = await http.get(_u('/status'), headers: _h);
-    final d = jsonDecode(r.body) as Map<String,dynamic>;
-    if (r.statusCode>=400) throw Exception(d['error']??'Error');
-    return DayStatus.fromJson(d);
+    final j = await _exec({
+      'action': 'status',
+      'tz': AppConfig.defaultTz,
+    });
+    return DayStatus.fromJson(j);
   }
 
   Future<void> checkIn() async {
-    final r = await http.post(_u('/checkin'), headers: _h, body: '{}');
-    if (r.statusCode>=400) throw Exception(jsonDecode(r.body)['error']??'Error');
+    await _exec({
+      'action': 'check_in',
+      'tz': AppConfig.defaultTz,
+    });
   }
 
   Future<void> checkOut() async {
-    final r = await http.post(_u('/checkout'), headers: _h, body: '{}');
-    if (r.statusCode>=400) throw Exception(jsonDecode(r.body)['error']??'Error');
+    await _exec({
+      'action': 'check_out',
+      'tz': AppConfig.defaultTz,
+    });
   }
 }
